@@ -142,6 +142,7 @@ test.describe('with a demo plan', () => {
     await expect(timer).toHaveAttribute('aria-label', pausedName!);
 
     await page.getByRole('button', { name: 'Resume' }).click();
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible(); // saved
     await page.reload(); // interruption: state comes from stored timestamps
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
     await expect(page.getByRole('timer')).toHaveAccessibleName(
@@ -255,9 +256,8 @@ test('11: works without AI connectivity', async ({ page, context }) => {
   await page.getByLabel('What are you stuck on?').fill('Clean my kitchen');
   await page.getByRole('button', { name: 'Help me start' }).click();
   await findFirstStep(page);
-  // Offline is detected before any consent prompt matters; quick steps appear.
-  const consent = page.getByRole('button', { name: 'OK, use AI' });
-  if (await consent.isVisible().catch(() => false)) await consent.click();
+  // Consent comes first; then the offline check fails fast and quick steps appear.
+  await page.getByRole('button', { name: 'OK, use AI' }).click();
   await expect(page.getByText(/offline/i)).toBeVisible();
   await expect(page.locator('.domino-step')).toBeVisible();
   await expect(page.locator('.tag', { hasText: 'Quick steps' })).toBeVisible();

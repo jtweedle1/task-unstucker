@@ -21,12 +21,14 @@ test('backup export, delete everything, and restore', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Delete all data on this device' }).click();
   await page.getByRole('button', { name: 'Delete everything' }).click();
+  await expect(page.getByText('All data deleted.')).toBeVisible();
   await page.goto('/tasks');
   await expect(page.getByText(/Nothing saved yet/)).toBeVisible();
 
   await page.goto('/settings');
   await page.locator('#import-file').setInputFiles(path);
   await page.getByRole('button', { name: 'Replace everything here' }).click();
+  await expect(page.getByText('Backup restored.')).toBeVisible();
   await page.goto('/tasks');
   await page.getByRole('link', { name: /Back me up/ }).click();
   await expect(page.getByText('Step 2 of')).toBeVisible();
