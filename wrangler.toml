@@ -1,0 +1,7 @@
+# Cloudflare Pages project config. Nothing is deployed until someone runs a deploy
+# themselves. Secrets (ANTHROPIC_API_KEY, APP_ACCESS_CODE) go in the Pages dashboard
+# or `wrangler pages secret put`, never in this file.
+name = "task-unstucker"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
