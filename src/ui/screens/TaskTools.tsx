@@ -156,11 +156,16 @@ export function FinishView({
         className="stack"
         onSubmit={(e) => {
           e.preventDefault();
+          // Confirm only once the write has landed, so "Saved." is true.
           void updateTask(task.id, {
             doneDefinition: definition.trim().slice(0, 200) || undefined,
-          });
-          setDraft(null);
-          toast.show('Saved.');
+          }).then(
+            () => {
+              setDraft(null);
+              toast.show('Saved.');
+            },
+            () => toast.show("Couldn't save that. Try again."),
+          );
         }}
       >
         <label htmlFor={defId}>What does "done" mean here?</label>

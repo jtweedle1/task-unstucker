@@ -43,6 +43,8 @@ test('brain dump becomes tasks, then roulette picks one and starts a challenge',
 test('14: roulette only picks eligible tasks', async ({ page }) => {
   await dump(page, 'finished thing\nopen thing\ndeleted thing');
   await page.getByRole('button', { name: 'Save 3 tasks' }).click();
+  // Wait for the write to land before navigating, or the reload can cut it off.
+  await expect(page.getByRole('heading', { name: 'Saved 3 tasks' })).toBeVisible();
   await page.goto('/tasks');
   await page.getByRole('button', { name: 'Options for Finished thing' }).click();
   await page.getByRole('button', { name: 'Mark done' }).click();
@@ -66,6 +68,8 @@ test('14: roulette only picks eligible tasks', async ({ page }) => {
 test('energy matching leaves out tasks that need more energy', async ({ page }) => {
   await dump(page, 'easy thing\nhard thing');
   await page.getByRole('button', { name: 'Save 2 tasks' }).click();
+  // Wait for the write to land before navigating, or the reload can cut it off.
+  await expect(page.getByRole('heading', { name: 'Saved 2 tasks' })).toBeVisible();
   await page.goto('/tasks');
   await page.getByRole('link', { name: /Hard thing/ }).click();
   await page.getByRole('button', { name: 'Write my own steps' }).click();
@@ -133,6 +137,7 @@ test('almost done: diagnosis leads to the finish line', async ({ page }) => {
   await expect(page.getByLabel('What does "done" mean here?')).toHaveValue(/^Done when/);
   await page.getByLabel('What does "done" mean here?').fill('Counters clear and dishes away');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('What does "done" mean here?')).toHaveValue(
     'Counters clear and dishes away',
@@ -188,6 +193,8 @@ test('pin and due date show on the task list', async ({ page }) => {
 test('every new tool is reachable from Home in 3 taps or fewer', async ({ page }) => {
   await dump(page, 'one thing');
   await page.getByRole('button', { name: 'Save 1 task' }).click();
+  // Wait for the write to land before navigating, or the reload can cut it off.
+  await expect(page.getByRole('heading', { name: 'Saved 1 task' })).toBeVisible();
   await page.goto('/');
   await page.getByRole('link', { name: 'Pick for me' }).click(); // 1
   await page.getByRole('button', { name: 'Pick for me' }).click(); // 2
