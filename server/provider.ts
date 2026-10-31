@@ -16,12 +16,12 @@ export interface AiProvider {
 }
 
 export class ProviderError extends Error {
-  constructor(
-    public readonly code: AiErrorCode,
-    message: string,
-    public readonly retryAfterSec?: number,
-  ) {
+  readonly code: AiErrorCode;
+  readonly retryAfterSec: number | undefined;
+  constructor(code: AiErrorCode, message: string, retryAfterSec?: number) {
     super(message);
     this.name = 'ProviderError';
+    this.code = code;
+    this.retryAfterSec = retryAfterSec;
   }
 }

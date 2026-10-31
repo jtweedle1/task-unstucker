@@ -7,6 +7,7 @@ import {
   convertThoughtToTask,
   deleteTask,
   dismissThought,
+  estimateRatios,
   listOpenThoughts,
   listVisibleTasks,
   reopenTask,
@@ -16,11 +17,13 @@ import {
   updateTask,
 } from '../../data/repo';
 import { pickCurrentStep, progressOf } from '../../domain/plan';
+import { estimatePattern } from '../../domain/estimates';
 import { momentumSince, momentumText } from '../../domain/rewards';
 import type { Task, TaskStep } from '../../domain/types';
 import { Dialog } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { useSettings } from '../hooks';
+import { dueText } from './TaskTools';
 
 interface Row {
   task: Task;
@@ -28,7 +31,15 @@ interface Row {
 }
 
 function subtitle({ task, steps }: Row): string {
-  if (task.status === 'done') return 'Done';
+  if (task.status === 'done') return task.goodEnough ? 'Done (good enough)' : 'Done';
+  const flags = [task.pinned ? 'Pinned' : '', task.dueDate ? dueText(task.dueDate) : '']
+    .filter(Boolean)
+    .join(' · ');
+  const rest = baseSubtitle(steps, task);
+  return flags ? `${flags} · ${rest}` : rest;
+}
+
+function baseSubtitle(steps: TaskStep[], task: Task): string {
   if (steps.length === 0) return 'No steps yet';
   const { done, total } = progressOf(steps);
   const next = pickCurrentStep(steps, task.currentStepId);
@@ -46,6 +57,7 @@ export function TasksScreen() {
     return tasks.map((task) => ({ task, steps: all.filter((s) => s.taskId === task.id) }));
   }, []);
   const thoughts = useLiveQuery(() => listOpenThoughts(), []);
+  const pattern = useLiveQuery(async () => estimatePattern(await estimateRatios()), []);
   const momentum = useLiveQuery(
     async () => momentumText(momentumSince(await db.events.toArray(), Date.now())),
     [],
@@ -82,6 +94,13 @@ export function TasksScreen() {
     <div className="stack">
       <h1>Tasks</h1>
       {settings.rewardsLevel !== 'off' && momentum && <p className="card lilac">{momentum}</p>}
+
+      {pattern && <p className="muted small">{pattern}</p>}
+      {rows.filter((r) => r.task.status !== 'done').length >= 2 && (
+        <Link to="/pick" className="btn block">
+          Can't choose? Pick for me
+        </Link>
+      )}
 
       {rows.length === 0 && (
         <div className="card soft stack">
@@ -179,6 +198,16 @@ export function TasksScreen() {
                 Mark done
               </button>
             )}
+            <button
+              type="button"
+              className="btn block"
+              onClick={async () => {
+                await updateTask(menuFor.id, { pinned: !menuFor.pinned });
+                setMenuFor(null);
+              }}
+            >
+              {menuFor.pinned ? 'Unpin' : 'Pin'}
+            </button>
             {menuFor.status === 'active' && (
               <button
                 type="button"

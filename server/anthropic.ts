@@ -4,7 +4,8 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { InvalidOutputError } from '../src/ai/schemas.ts';
 import { ProviderError, type AiProvider, type StructuredRequest } from './provider.ts';
 
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
+// The plan chose the small, fast tier: these are short structured jobs where speed and cost matter.
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-haiku-5-5';
 
 export function createAnthropicProvider(opts: {
   apiKey: string;

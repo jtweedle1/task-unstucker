@@ -4,12 +4,16 @@
 import {
   AiRequestSchema,
   BreakdownWireSchema,
+  DumpWireSchema,
+  FinishWireSchema,
   EasierWireSchema,
   InvalidOutputError,
   LIMITS,
   RefineWireSchema,
   normalizeBreakdown,
+  normalizeDump,
   normalizeEasier,
+  normalizeFinish,
   normalizeRefine,
   type AiErrorBody,
   type AiErrorCode,
@@ -83,10 +87,12 @@ function fail(code: AiErrorCode, retryAfterSec?: number): Response {
 /** Simple sliding-window limiter. Per isolate only: a best-effort guard, not a hard quota. */
 export class RateLimiter {
   private hits = new Map<string, number[]>();
-  constructor(
-    private readonly limit = 30,
-    private readonly windowMs = 60 * 60 * 1000,
-  ) {}
+  private readonly limit: number;
+  private readonly windowMs: number;
+  constructor(limit = 30, windowMs = 60 * 60 * 1000) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+  }
 
   check(key: string, now = Date.now()): { ok: true } | { ok: false; retryAfterSec: number } {
     const recent = (this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs);
@@ -137,6 +143,27 @@ async function runOnce(
       signal,
     });
     return normalizeRefine(raw, new Set(req.steps.map((s) => s.id)));
+  }
+  if (req.kind === 'dump') {
+    const raw = await provider.generate({
+      system,
+      user,
+      schema: DumpWireSchema,
+      maxTokens: 3000,
+      signal,
+    });
+    return normalizeDump(raw);
+  }
+  if (req.kind === 'finish') {
+    const raw = await provider.generate({
+      system,
+      user,
+      schema: FinishWireSchema,
+      maxTokens: 2000,
+      signal,
+    });
+    const eligible = req.steps.filter((s) => s.status === 'todo' && s.tier === 'required');
+    return normalizeFinish(raw, new Set(eligible.map((s) => s.id)));
   }
   const raw = await provider.generate({
     system,

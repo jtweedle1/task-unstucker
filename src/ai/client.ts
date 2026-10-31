@@ -2,6 +2,8 @@
 // and validates everything that comes back before the domain layer sees it.
 import { uuidv7 } from '../domain/ids';
 import { previewRefinement, type RefineOp, type RefinePreview } from '../domain/plan';
+import { splitBrainDump } from '../domain/braindump';
+import { defaultDefinition } from '../domain/finish';
 import { easierStep, templateSteps } from '../domain/templates';
 import type { AppSettings, StepOrigin, Task, TaskStep } from '../domain/types';
 import { demoBreakdown, demoEasier } from './demo';
@@ -9,10 +11,13 @@ import { ruleBasedRefine } from './rules';
 import {
   LIMITS,
   normalizeBreakdown,
+  normalizeDump,
   normalizeEasier,
+  normalizeFinish,
   normalizeRefine,
   type AiErrorCode,
   type AiRequest,
+  type TaskContext,
   type BreakdownResult,
   type RefineResultOp,
 } from './schemas';
@@ -99,7 +104,7 @@ async function callProxy(req: AiRequest, settings: AppSettings): Promise<unknown
   throw new AiError(code, friendlyAiMessage(code));
 }
 
-function taskContext(task: Task): AiRequest['task'] {
+function taskContext(task: Task): TaskContext {
   return {
     title: task.title.slice(0, LIMITS.title),
     ...(task.barrier ? { barrier: task.barrier } : {}),
@@ -279,4 +284,76 @@ export async function makeStepEasier(
     }
   }
   return { text: easierStep(step.text), estimateMin: 1, origin: 'template' };
+}
+
+export interface DumpOutcome {
+  items: string[];
+  origin: StepOrigin;
+  fallbackReason?: string;
+}
+
+/** Brain dump to tasks. Never throws for AI problems: falls back to offline splitting. */
+export async function sortBrainDump(text: string, settings: AppSettings): Promise<DumpOutcome> {
+  const offline = (origin: StepOrigin, reason?: string): DumpOutcome => ({
+    items: splitBrainDump(text),
+    origin,
+    ...(reason ? { fallbackReason: reason } : {}),
+  });
+  if (settings.aiMode === 'demo') return offline('demo');
+  if (settings.aiMode === 'off') return offline('template');
+  ensureLiveAllowed(settings);
+  try {
+    const raw = await callProxy({ kind: 'dump', text: text.slice(0, LIMITS.dumpText) }, settings);
+    return { items: normalizeDump(raw).items, origin: 'ai' };
+  } catch (err) {
+    const code = err instanceof AiError ? err.code : 'invalid_output';
+    return offline('template', friendlyAiMessage(code));
+  }
+}
+
+export interface FinishOutcome {
+  doneDefinition: string;
+  polishStepIds: string[];
+  origin: StepOrigin;
+  fallbackReason?: string;
+}
+
+/** Suggests a definition of done and which remaining steps are polish. */
+export async function suggestFinishLine(
+  task: Task,
+  steps: TaskStep[],
+  settings: AppSettings,
+): Promise<FinishOutcome> {
+  const offline = (origin: StepOrigin, reason?: string): FinishOutcome => ({
+    doneDefinition: defaultDefinition(steps),
+    polishStepIds: [],
+    origin,
+    ...(reason ? { fallbackReason: reason } : {}),
+  });
+  if (settings.aiMode === 'demo') return offline('demo');
+  if (settings.aiMode === 'off') return offline('template');
+  ensureLiveAllowed(settings);
+  try {
+    const sent = steps.slice(0, LIMITS.stepsSent);
+    const raw = await callProxy(
+      {
+        kind: 'finish',
+        task: taskContext(task),
+        steps: sent.map((s) => ({
+          id: s.id,
+          text: s.text.slice(0, LIMITS.stepText),
+          tier: s.tier,
+          status: s.status,
+          userEdited: s.userEdited,
+          ...(s.estimateMin ? { estimateMin: s.estimateMin } : {}),
+        })),
+      },
+      settings,
+    );
+    const eligible = sent.filter((s) => s.status === 'todo' && s.tier === 'required');
+    return { ...normalizeFinish(raw, new Set(eligible.map((s) => s.id))), origin: 'ai' };
+  } catch (err) {
+    const code = err instanceof AiError ? err.code : 'invalid_output';
+    return offline('template', friendlyAiMessage(code));
+  }
 }

@@ -226,3 +226,41 @@ describe('AI proxy handler', () => {
     expect(body.result.ops[0].stepId).toBe('s1');
   });
 });
+
+describe('Phase 2 AI kinds', () => {
+  it('normalizes brain dumps and keeps only eligible finish-line IDs', async () => {
+    const dump = await handleAiRequest(post({ kind: 'dump', text: 'call mum; buy milk' }), env, {
+      provider: provider({
+        items: [{ title: 'Call mum' }, { title: '<b>Buy milk</b>' }, { title: 'call mum' }],
+      }),
+      rateLimiter: new RateLimiter(),
+    });
+    expect((await dump.json()).result.items).toEqual(['Call mum', 'Buy milk']);
+
+    const steps = [
+      { id: 'a', text: 'Done one', tier: 'required', status: 'done', userEdited: false },
+      { id: 'b', text: 'Send it', tier: 'required', status: 'todo', userEdited: false },
+      { id: 'c', text: 'Fonts', tier: 'optional', status: 'todo', userEdited: false },
+    ];
+    const fin = await handleAiRequest(
+      post({ kind: 'finish', task: { title: 'Report' }, steps }),
+      env,
+      {
+        provider: provider({
+          doneDefinition: 'Done when sent',
+          polishStepIds: ['a', 'b', 'c', 'zzz'],
+        }),
+        rateLimiter: new RateLimiter(),
+      },
+    );
+    expect((await fin.json()).result.polishStepIds).toEqual(['b']);
+  });
+
+  it('rejects an oversized brain dump', async () => {
+    const res = await handleAiRequest(post({ kind: 'dump', text: 'x'.repeat(5000) }), env, {
+      provider: provider({ items: [] }),
+      rateLimiter: new RateLimiter(),
+    });
+    expect(res.status).toBe(400);
+  });
+});

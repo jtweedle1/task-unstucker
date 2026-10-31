@@ -15,6 +15,9 @@ export const LIMITS = {
   outSummary: 160,
   outQuestion: 140,
   outOption: 48,
+  dumpText: 4000,
+  outDumpItems: 30,
+  outDumpTitle: 120,
 } as const;
 
 const barrier = z.enum([
@@ -62,8 +65,15 @@ export const AiRequestSchema = z.discriminatedUnion('kind', [
     task: TaskContextSchema,
     step: z.object({ text: z.string().trim().min(1).max(LIMITS.stepText) }),
   }),
+  z.object({ kind: z.literal('dump'), text: z.string().trim().min(1).max(LIMITS.dumpText) }),
+  z.object({
+    kind: z.literal('finish'),
+    task: TaskContextSchema,
+    steps: z.array(StepContextSchema).max(LIMITS.stepsSent),
+  }),
 ]);
 export type AiRequest = z.infer<typeof AiRequestSchema>;
+export type TaskContext = z.infer<typeof TaskContextSchema>;
 export type AiRequestKind = AiRequest['kind'];
 
 // ---------------------------------------------------------------------------
@@ -99,6 +109,15 @@ export const EasierWireSchema = z.object({
   estimateMin: z.number(),
 });
 
+export const DumpWireSchema = z.object({
+  items: z.array(z.object({ title: z.string() })),
+});
+
+export const FinishWireSchema = z.object({
+  doneDefinition: z.string(),
+  polishStepIds: z.array(z.string()),
+});
+
 // ---------------------------------------------------------------------------
 // Normalized results returned to the app.
 // ---------------------------------------------------------------------------
@@ -129,7 +148,17 @@ export interface EasierResult {
   estimateMin?: number;
 }
 
-export type AiResult = BreakdownResult | RefineResult | EasierResult;
+export interface DumpResult {
+  items: string[];
+}
+
+export interface FinishResult {
+  doneDefinition: string;
+  /** Remaining required steps the AI thinks are really optional polish. Suggestions only. */
+  polishStepIds: string[];
+}
+
+export type AiResult = BreakdownResult | RefineResult | EasierResult | DumpResult | FinishResult;
 
 export class InvalidOutputError extends Error {
   constructor(message: string) {
@@ -235,6 +264,34 @@ export function normalizeEasier(raw: unknown): EasierResult {
   if (!text) throw new InvalidOutputError('Easier step was empty');
   const estimateMin = cleanMinutes(parsed.data.estimateMin);
   return { text, ...(estimateMin !== undefined ? { estimateMin } : {}) };
+}
+
+export function normalizeDump(raw: unknown): DumpResult {
+  const parsed = DumpWireSchema.safeParse(raw);
+  if (!parsed.success) throw new InvalidOutputError('Brain dump did not match the schema');
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const i of parsed.data.items) {
+    const t = cleanText(i.title, LIMITS.outDumpTitle);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    items.push(t);
+    if (items.length >= LIMITS.outDumpItems) break;
+  }
+  if (items.length === 0) throw new InvalidOutputError('Brain dump had no items');
+  return { items };
+}
+
+/** Only required, not-done steps the app sent can be suggested as polish. */
+export function normalizeFinish(raw: unknown, eligibleIds: ReadonlySet<string>): FinishResult {
+  const parsed = FinishWireSchema.safeParse(raw);
+  if (!parsed.success) throw new InvalidOutputError('Finish line did not match the schema');
+  const doneDefinition = cleanText(parsed.data.doneDefinition, LIMITS.outSummary);
+  if (!doneDefinition) throw new InvalidOutputError('Finish line had no definition');
+  return {
+    doneDefinition,
+    polishStepIds: [...new Set(parsed.data.polishStepIds.filter((id) => eligibleIds.has(id)))],
+  };
 }
 
 /** Error codes shared by the proxy and the app. */

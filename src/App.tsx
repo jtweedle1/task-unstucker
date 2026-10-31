@@ -14,7 +14,9 @@ import { IconGear, IconList, IconSpark } from './ui/components/Icons';
 import { UpdatePrompt } from './ui/components/UpdatePrompt';
 import { useSettings } from './ui/hooks';
 import { DoScreen } from './ui/screens/DoScreen';
+import { DumpScreen } from './ui/screens/DumpScreen';
 import { HomeScreen } from './ui/screens/HomeScreen';
+import { PickScreen } from './ui/screens/PickScreen';
 import { SettingsScreen } from './ui/screens/SettingsScreen';
 import { TaskScreen } from './ui/screens/TaskScreen';
 import { TasksScreen } from './ui/screens/TasksScreen';
@@ -73,6 +75,8 @@ function Shell({ withUpdatePrompt }: { withUpdatePrompt: boolean }) {
           <Route path="/task/:id/do" element={<DoScreen />} />
           <Route path="/do" element={<DoScreen />} />
           <Route path="/tasks" element={<TasksScreen />} />
+          <Route path="/pick" element={<PickScreen />} />
+          <Route path="/dump" element={<DumpScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route
             path="*"

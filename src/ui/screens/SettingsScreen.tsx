@@ -9,7 +9,13 @@ import {
 import { isStandalone, requestPersistentStorage } from '../../data/persist';
 import { deleteAllData, updateSettings } from '../../data/repo';
 import { clearAiCache } from '../../ai/client';
-import type { AiMode, AppSettings, MotionPref, RewardsLevel } from '../../domain/types';
+import type {
+  AiMode,
+  AppSettings,
+  MotionPref,
+  RewardsLevel,
+  SetupPromptPref,
+} from '../../domain/types';
 import { Dialog } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { useSettings } from '../hooks';
@@ -144,6 +150,29 @@ export function SettingsScreen() {
         options={[
           { value: 'system', label: 'Follow my device setting' },
           { value: 'reduced', label: 'Reduce motion' },
+        ]}
+      />
+
+      <RadioGroup<SetupPromptPref>
+        legend="Setup before a timer"
+        name="setup"
+        value={settings.setupPrompts ?? 'auto'}
+        onChange={(v) => void updateSettings({ setupPrompts: v })}
+        options={[
+          { value: 'auto', label: 'When distraction is the problem' },
+          { value: 'always', label: 'Always offer it' },
+          { value: 'off', label: 'Never' },
+        ]}
+      />
+
+      <RadioGroup<'on' | 'off'>
+        legend="Two-minute challenges"
+        name="challenges"
+        value={settings.challenges === false ? 'off' : 'on'}
+        onChange={(v) => void updateSettings({ challenges: v === 'on' })}
+        options={[
+          { value: 'on', label: 'On', hint: 'A light challenge line, like "race the clock".' },
+          { value: 'off', label: 'Off' },
         ]}
       />
 

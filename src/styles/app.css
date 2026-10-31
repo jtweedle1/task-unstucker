@@ -675,3 +675,34 @@ details summary {
     min-height: auto;
   }
 }
+
+/* Phase 2 */
+.plain-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.chip-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.challenge {
+  font-weight: 600;
+  color: var(--primary);
+  text-wrap: balance;
+}
+.dump-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.dump-row input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+.dump-row input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}

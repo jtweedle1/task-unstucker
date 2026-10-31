@@ -2,7 +2,16 @@
 // Deterministic, explainable, and tested row by row.
 import type { Barrier } from './types';
 
-export type Method = 'breakdown' | 'launch' | 'focus' | 'saved-tasks';
+export type Method =
+  | 'breakdown'
+  | 'launch'
+  | 'focus'
+  | 'saved-tasks'
+  | 'roulette'
+  | 'good-enough'
+  | 'finish-line'
+  | 'brain-dump'
+  | 'energy';
 
 export interface MethodInfo {
   id: Method;
@@ -30,6 +39,31 @@ export const METHODS: Record<Method, MethodInfo> = {
     id: 'saved-tasks',
     label: 'Look at saved tasks',
     blurb: 'Pick from what you already have.',
+  },
+  roulette: {
+    id: 'roulette',
+    label: 'Pick for me',
+    blurb: 'Let the app choose a task so you can skip deciding.',
+  },
+  'good-enough': {
+    id: 'good-enough',
+    label: 'Good-enough version',
+    blurb: 'Only the steps that matter. Polish is optional.',
+  },
+  'finish-line': {
+    id: 'finish-line',
+    label: 'Find the finish line',
+    blurb: "See what's truly left and what can wait.",
+  },
+  'brain-dump': {
+    id: 'brain-dump',
+    label: 'Brain dump',
+    blurb: 'Get everything out of your head, then pick one.',
+  },
+  energy: {
+    id: 'energy',
+    label: 'Something for my energy',
+    blurb: 'Pick a task that fits how much energy you have.',
   },
 };
 
@@ -61,46 +95,45 @@ export interface Recommendation {
 const RULES: Record<Barrier, Recommendation> = {
   'no-start': {
     recommended: 'breakdown',
-    alternatives: ['launch'],
+    alternatives: ['launch', 'brain-dump'],
     reason: "When it's unclear where to begin, one concrete first step helps.",
   },
   'too-much': {
     recommended: 'breakdown',
-    alternatives: ['launch'],
+    alternatives: ['good-enough', 'launch'],
     reason: 'Smaller pieces make big tasks easier to begin.',
   },
   boring: {
     recommended: 'launch',
-    alternatives: ['focus', 'breakdown'],
+    alternatives: ['focus', 'roulette'],
     reason: 'Make it a quick challenge: how far can you get in two minutes?',
     minutes: 2,
   },
   distracted: {
     recommended: 'focus',
     alternatives: ['launch', 'breakdown'],
-    reason: 'A short sprint with a parking spot for stray thoughts.',
+    reason: 'A short sprint with a quick setup and a parking spot for stray thoughts.',
     minutes: 10,
   },
   perfect: {
     recommended: 'breakdown',
-    alternatives: ['launch'],
+    alternatives: ['good-enough', 'launch'],
     reason: 'Aim for a rough first pass. You can improve it later.',
   },
   'low-energy': {
     recommended: 'breakdown',
-    alternatives: ['launch'],
+    alternatives: ['launch', 'energy'],
     reason: "Let's find something small enough for right now.",
   },
   'cant-decide': {
-    recommended: 'launch',
-    alternatives: ['saved-tasks', 'breakdown'],
-    reason: "Try this one for two minutes. If it doesn't fit, switch.",
-    minutes: 2,
+    recommended: 'roulette',
+    alternatives: ['launch', 'breakdown'],
+    reason: 'Let the app pick. You can always say "not this one".',
   },
   'almost-done': {
-    recommended: 'breakdown',
-    alternatives: ['focus'],
-    reason: "Let's find the next small piece toward the finish.",
+    recommended: 'finish-line',
+    alternatives: ['breakdown', 'focus'],
+    reason: "Let's see what's truly left and what can wait.",
   },
 };
 

@@ -439,6 +439,4 @@ test('accessibility: main screens have no serious axe violations', async ({ page
   await expectNoSeriousA11yViolations(page);
 });
 
-test('14: task roulette', async () => {
-  test.skip(true, 'Task Roulette is Phase 2 in the approved plan; not built yet.');
-});
+// Scenario 14 (Task Roulette) is covered in phase2.spec.ts.

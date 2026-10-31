@@ -13,7 +13,7 @@ import {
   type NewStepInput,
 } from '../domain/plan';
 import { dedupeKeyFor } from '../domain/rewards';
-import { extendTimer, pauseTimer, resumeTimer, startTimer } from '../domain/timer';
+import { elapsedMs, extendTimer, pauseTimer, resumeTimer, startTimer } from '../domain/timer';
 import {
   DEFAULT_SETTINGS,
   type AppSettings,
@@ -109,18 +109,46 @@ export async function setBarrier(id: Id, barrier: Barrier | undefined): Promise<
   await db.tasks.put({ ...rest, ...(barrier ? { barrier } : {}), updatedAt: clock.now() });
 }
 
-export async function completeTask(id: Id): Promise<void> {
+export async function completeTask(id: Id, opts: { goodEnough?: boolean } = {}): Promise<void> {
   await db.transaction('rw', db.tasks, db.events, async () => {
     const now = clock.now();
-    await db.tasks.update(id, { status: 'done', completedAt: now, updatedAt: now });
+    await db.tasks.update(id, {
+      status: 'done',
+      completedAt: now,
+      updatedAt: now,
+      ...(opts.goodEnough ? { goodEnough: true } : {}),
+    });
     await recordEvent('task-done', id);
   });
+}
+
+/** Brain dump: saves several tasks at once, as "saved for later". Returns them in order. */
+export async function createTasks(titles: string[]): Promise<Task[]> {
+  const clean = titles.map((t) => t.trim().slice(0, 300)).filter(Boolean);
+  const out: Task[] = [];
+  await db.transaction('rw', db.tasks, db.events, async () => {
+    for (const title of clean) {
+      const now = clock.now();
+      const task: Task = {
+        id: uuidv7(now),
+        title,
+        status: 'saved',
+        constraints: {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.tasks.add(task);
+      await recordEvent('task-created', task.id);
+      out.push(task);
+    }
+  });
+  return out;
 }
 
 export async function reopenTask(id: Id): Promise<void> {
   const task = await db.tasks.get(id);
   if (!task) return;
-  const { completedAt: _c, ...rest } = task;
+  const { completedAt: _c, goodEnough: _g, ...rest } = task;
   await db.tasks.put({ ...rest, status: 'active', updatedAt: clock.now() });
 }
 
@@ -405,6 +433,8 @@ export async function startSession(input: {
   goal: string;
   taskId?: Id;
   stepId?: Id;
+  guessMin?: number;
+  challenge?: string;
 }): Promise<FocusSession> {
   const now = clock.now();
   const timer = startTimer(Math.round(input.minutes * 60_000), now);
@@ -414,6 +444,8 @@ export async function startSession(input: {
     goal: input.goal.slice(0, 300),
     ...(input.taskId ? { taskId: input.taskId } : {}),
     ...(input.stepId ? { stepId: input.stepId } : {}),
+    ...(input.guessMin && input.guessMin > 0 ? { guessMin: Math.round(input.guessMin) } : {}),
+    ...(input.challenge ? { challenge: input.challenge } : {}),
     plannedMs: timer.plannedMs,
     startedAt: timer.startedAt,
     pausedTotalMs: 0,
@@ -458,6 +490,36 @@ export async function finishSession(id: Id, outcome: SessionOutcome): Promise<vo
     await db.sessions.put({ ...resumeTimer(s, now), endedAt: now, outcome });
     await recordEvent('session-finished', id);
   });
+}
+
+/** Task Roulette input: every visible task with its next step. */
+export async function listRouletteCandidates(): Promise<{ task: Task; nextStep?: TaskStep }[]> {
+  const tasks = await listVisibleTasks();
+  const steps = await db.steps.toArray();
+  return tasks.map((task) => {
+    const next = pickCurrentStep(
+      steps.filter((s) => s.taskId === task.id),
+      task.currentStepId,
+    );
+    return next ? { task, nextStep: next } : { task };
+  });
+}
+
+/** actual/guess ratios from finished sessions that had a guess, for the estimate pattern. */
+export async function estimateRatios(limit = 30): Promise<number[]> {
+  const ended = await db.sessions
+    .filter(
+      (s) =>
+        s.endedAt !== undefined &&
+        !!s.guessMin &&
+        (s.outcome === 'done' || s.outcome === 'progress'),
+    )
+    .toArray();
+  return ended
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, limit)
+    .map((s) => elapsedMs(s, s.endedAt!) / 60_000 / s.guessMin!)
+    .filter((r) => Number.isFinite(r) && r > 0);
 }
 
 // ---------------------------------------------------------------------------

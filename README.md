@@ -26,7 +26,31 @@ leaves the device is the text of the task you ask the AI about, and only after y
   or you're offline, you get built-in quick steps instead.
 - **Installable PWA** with an update prompt, offline app shell, reduced motion support.
 
-Task Roulette, Good Enough Mode, energy matching and the rest are planned for Phase 2.
+## What's in Phase 2
+
+- **Pick for me (Task Roulette)**: picks a task when deciding is the hard part. Pinned and due-soon
+  tasks come up more often. It never picks done or deleted tasks, and "Not this one" moves on.
+- **Energy Matching**: say how much energy you have and Pick for me leaves out tasks tagged as needing more.
+- **Brain dump**: type everything on your mind, get a list of separate tasks to keep or trim.
+  Works offline by splitting lines, bullets and sentences; AI does it with more judgement.
+- **Good-enough version**: only the required steps, optional ones hidden. "Call it done" closes the
+  task with polish left open. Tasks that look like health, safety, money or legal deadlines get a note.
+- **Finish line**: what's left, what "done" means (yours, or a suggestion), and what's optional polish.
+- **Setup prompts**: an optional checklist (phone away, water, clear a spot) before a timer.
+  Shown when distraction is the problem, or always, or never (Settings).
+- **Two-minute challenges**: a light framing line on two-minute starts, like "race the clock". Can be turned off.
+- **Time check**: after a timer, compares the step's estimate with how long it took, and after a few
+  times notes your usual pattern. Information only, no scores.
+- **Task details**: pin, due date, and how much energy a task takes.
+- Stuck Diagnosis now offers these tools for the matching "why is it hard?" choice.
+
+## Compare AI models (30 tasks)
+
+`npm run eval:compare -- --fake` runs the 30-task comparison offline to check the harness.
+With a key, `ANTHROPIC_API_KEY=... MODELS=claude-haiku-5-5,claude-sonnet-5-5 npm run eval:compare -- --yes`
+runs it for real (billed to your account) and writes results to `evals-output/`. It measures
+success rate, speed, whether the first step is small, safety notes on risky tasks, and whether
+two prompt-injection tasks are resisted.
 
 ## Run it locally
 
@@ -57,7 +81,7 @@ The API key lives only on the server side. It is never put in the app bundle.
    to that account.
 2. Copy `.env.example` to `.env.local` and fill in `ANTHROPIC_API_KEY=...`. `.env.local` is git-ignored.
 3. Optional settings in the same file:
-   - `AI_MODEL`: defaults to `claude-opus-5-5`. A smaller model such as `claude-haiku-5-5` costs less.
+   - `AI_MODEL`: defaults to `claude-haiku-5-5` (small and fast, as the plan chose). A larger model such as `claude-opus-5-5` may write better steps but costs more.
    - `APP_ACCESS_CODE`: if set, the app must send this code (entered in Settings) before the
      proxy will call the AI. Use this before sharing a deployed link, so strangers can't spend your credits.
 4. Restart `npm run dev`. The first time you ask for steps, the app asks your OK before sending task text.

@@ -13,7 +13,9 @@ import {
   pauseSession,
   resumeSession,
   startSession,
+  estimateRatios,
 } from '../../data/repo';
+import { compareEstimate, estimatePattern } from '../../domain/estimates';
 import { pickCurrentStep } from '../../domain/plan';
 import { celebrationText } from '../../domain/rewards';
 import { describeDuration, formatClock, isPaused, remainingMs, timeUpAt } from '../../domain/timer';
@@ -183,6 +185,7 @@ function ActiveTimer({
       <h1 className="visually-hidden">Focus</h1>
       <p className="eyebrow">{session.kind === 'launch' ? 'Two-minute start' : 'Focus sprint'}</p>
       <p className="do-goal">{session.goal}</p>
+      {session.challenge && <p className="challenge">{session.challenge}</p>}
 
       <div
         className="timer-wrap"
@@ -321,6 +324,13 @@ function WrapUp({
     return pickCurrentStep(await getSteps(task.id), task.currentStepId) ?? null;
   }, [session.taskId]);
 
+  const estimate = useLiveQuery(async () => {
+    if (!session.guessMin || (outcome !== 'done' && outcome !== 'progress')) return null;
+    const ended = (await db.sessions.get(session.id)) ?? session;
+    const result = compareEstimate(session.guessMin, ended, ended.endedAt ?? 0);
+    return result ? { text: result.text, pattern: estimatePattern(await estimateRatios()) } : null;
+  }, [session.id, outcome]);
+
   const message =
     outcome === 'done'
       ? celebrationText(session.id)
@@ -343,6 +353,15 @@ function WrapUp({
     <div className="stack">
       <h1>{outcome === 'pulled-away' ? 'No problem' : 'Nice'}</h1>
       <Celebrate message={message} settings={settings} />
+      {estimate && (
+        <section className="card soft" aria-labelledby="est-h">
+          <h2 id="est-h" className="eyebrow">
+            Time check
+          </h2>
+          <p>{estimate.text}</p>
+          {estimate.pattern && <p className="muted small">{estimate.pattern}</p>}
+        </section>
+      )}
       {nextStep && (
         <p>
           Next up: <strong>{nextStep.text}</strong>
