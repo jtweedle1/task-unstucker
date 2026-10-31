@@ -141,5 +141,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   schemaVersion: 1,
   rewardsLevel: 'full',
   motion: 'system',
-  aiMode: 'live',
+  aiMode: import.meta.env.VITE_PREVIEW ? 'demo' : 'live',
 };

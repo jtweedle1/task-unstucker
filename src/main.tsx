@@ -5,6 +5,6 @@ import './styles/app.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App withUpdatePrompt={import.meta.env.PROD} />
+    <App withUpdatePrompt={import.meta.env.PROD && !import.meta.env.VITE_PREVIEW} />
   </StrictMode>,
 );

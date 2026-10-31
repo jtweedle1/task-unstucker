@@ -1,5 +1,13 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router';
+import {
+  BrowserRouter,
+  Link,
+  MemoryRouter,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router';
 import { purgeDeleted } from './data/repo';
 import { ToastProvider } from './ui/components/Toast';
 import { IconGear, IconList, IconSpark } from './ui/components/Icons';
@@ -95,11 +103,13 @@ function Shell({ withUpdatePrompt }: { withUpdatePrompt: boolean }) {
 }
 
 export function App({ withUpdatePrompt = true }: { withUpdatePrompt?: boolean }) {
+  // The single-file preview runs inside a frame where URL paths don't work.
+  const Router = import.meta.env.VITE_PREVIEW ? MemoryRouter : BrowserRouter;
   return (
-    <BrowserRouter>
+    <Router>
       <ToastProvider>
         <Shell withUpdatePrompt={withUpdatePrompt} />
       </ToastProvider>
-    </BrowserRouter>
+    </Router>
   );
 }
