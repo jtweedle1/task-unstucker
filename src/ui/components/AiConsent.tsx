@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { updateSettings } from '../../data/repo';
+import { AiError } from '../../ai/client';
+import { getSettings, updateSettings } from '../../data/repo';
+import type { AppSettings, StepOrigin } from '../../domain/types';
 import { Dialog } from './Dialog';
 
 /**
@@ -53,4 +55,38 @@ export function useAiConsent() {
   );
 
   return { ensure, dialog };
+}
+
+/** Runs an AI action; if it needs consent, asks once, then runs again with fresh settings. */
+export function useWithConsent() {
+  const consent = useAiConsent();
+  const run = async <T,>(fn: (s: AppSettings) => Promise<T>): Promise<T> => {
+    try {
+      return await fn(await getSettings());
+    } catch (err) {
+      if (err instanceof AiError && err.code === 'consent') {
+        await consent.ensure();
+        return fn(await getSettings());
+      }
+      throw err;
+    }
+  };
+  return { run, dialog: consent.dialog };
+}
+
+export type ConsentRun = ReturnType<typeof useWithConsent>['run'];
+
+export function sourceLabel(origin: StepOrigin | undefined): string {
+  switch (origin) {
+    case 'ai':
+      return 'AI';
+    case 'demo':
+      return 'Demo';
+    case 'template':
+      return 'Quick steps';
+    case 'user':
+      return 'Your steps';
+    default:
+      return '';
+  }
 }

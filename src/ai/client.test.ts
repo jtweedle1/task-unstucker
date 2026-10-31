@@ -154,3 +154,37 @@ describe('refinePlan and makeStepEasier', () => {
     expect(out.text.length).toBeGreaterThan(0);
   });
 });
+
+describe('brain dump and finish line', () => {
+  it('uses AI for a brain dump and falls back to offline splitting', async () => {
+    const { sortBrainDump, suggestFinishLine } = await import('./client');
+    respond(200, {
+      ok: true,
+      result: { items: [{ title: 'Call the dentist' }, { title: 'Buy milk' }] },
+    });
+    expect(await sortBrainDump('dentist, milk', live)).toEqual({
+      items: ['Call the dentist', 'Buy milk'],
+      origin: 'ai',
+    });
+    respond(503, { ok: false, error: { code: 'not_configured', message: '' } });
+    const off = await sortBrainDump('call the dentist\nbuy milk', live);
+    expect(off.origin).toBe('template');
+    expect(off.items).toEqual(['Call the dentist', 'Buy milk']);
+    expect(off.fallbackReason).toBeTruthy();
+
+    respond(200, {
+      ok: true,
+      result: { doneDefinition: 'Done when sent', polishStepIds: ['s1', 'nope'] },
+    });
+    const fin = await suggestFinishLine(task, steps, live);
+    expect(fin).toMatchObject({
+      doneDefinition: 'Done when sent',
+      polishStepIds: ['s1'],
+      origin: 'ai',
+    });
+    calls = [];
+    const demo = await suggestFinishLine(task, steps, { ...DEFAULT_SETTINGS, aiMode: 'demo' });
+    expect(demo.origin).toBe('demo');
+    expect(calls).toHaveLength(0);
+  });
+});

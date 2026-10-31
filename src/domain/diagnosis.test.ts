@@ -9,13 +9,26 @@ const expected: Record<Barrier, string> = {
   distracted: 'focus',
   perfect: 'breakdown',
   'low-energy': 'breakdown',
-  'cant-decide': 'launch',
-  'almost-done': 'breakdown',
+  'cant-decide': 'roulette',
+  'almost-done': 'finish-line',
 };
+
+// Phase 2 "later additions" from the plan's diagnosis table.
+const phase2Alternatives: [Barrier, string][] = [
+  ['no-start', 'brain-dump'],
+  ['too-much', 'good-enough'],
+  ['boring', 'roulette'],
+  ['perfect', 'good-enough'],
+  ['low-energy', 'energy'],
+];
 
 describe('stuck diagnosis rules', () => {
   it.each(Object.entries(expected))('%s recommends %s', (barrier, method) => {
     expect(recommend(barrier as Barrier).recommended).toBe(method);
+  });
+
+  it.each(phase2Alternatives)('%s offers %s', (barrier, method) => {
+    expect(recommend(barrier).alternatives).toContain(method);
   });
 
   it('covers every barrier with a reason and distinct, valid alternatives', () => {
@@ -36,6 +49,7 @@ describe('stuck diagnosis rules', () => {
     const text = [
       ...BARRIERS.map((b) => b.label),
       ...BARRIERS.map((b) => recommend(b.id).reason),
+      ...Object.values(METHODS).flatMap((m) => [m.label, m.blurb]),
     ].join(' ');
     expect(text).not.toMatch(/adhd|disorder|lazy|procrastinat|fail/i);
   });

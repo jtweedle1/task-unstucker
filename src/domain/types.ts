@@ -42,6 +42,16 @@ export interface Task {
   planSource?: StepOrigin;
   planQuestion?: PlanQuestion;
   safetyNote?: string;
+  /** Pinned tasks get extra weight in Task Roulette. */
+  pinned?: boolean;
+  /** Optional due date as a local calendar day, YYYY-MM-DD. */
+  dueDate?: string;
+  /** How much energy the task takes, set by the user. Used by Energy Matching. */
+  energy?: Energy;
+  /** Finish-Line Finder: what "done" means for this task, in the user's words. */
+  doneDefinition?: string;
+  /** Set when the task was closed with "good enough for now" (optional steps left open). */
+  goodEnough?: boolean;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
@@ -94,6 +104,10 @@ export interface FocusSession {
   pausedTotalMs: number;
   endedAt?: number;
   outcome?: SessionOutcome;
+  /** Time-estimate check: the user's (or the step's) guess in minutes, for comparison. */
+  guessMin?: number;
+  /** Micro-challenge framing shown during this session, if any. */
+  challenge?: string;
 }
 
 export interface ParkedThought {
@@ -118,6 +132,8 @@ export interface ProgressEvent {
 }
 
 export type RewardsLevel = 'full' | 'quiet' | 'off';
+/** When to offer setup prompts before a timer: always, only when distraction is the barrier, or never. */
+export type SetupPromptPref = 'auto' | 'always' | 'off';
 export type MotionPref = 'system' | 'reduced';
 export type AiMode = 'live' | 'demo' | 'off';
 
@@ -134,6 +150,11 @@ export interface AppSettings {
   persistGranted?: boolean;
   lastExportAt?: number;
   dismissedResumeTaskId?: Id;
+  setupPrompts?: SetupPromptPref;
+  /** Offer playful micro-challenge framing on two-minute starts. */
+  challenges?: boolean;
+  /** Energy Matching: the user's self-reported energy and when they said it (it goes stale). */
+  energyNow?: { level: Energy; at: number };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

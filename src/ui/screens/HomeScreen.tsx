@@ -167,11 +167,22 @@ export function HomeScreen() {
         </section>
       )}
 
-      <p>
-        <Link to="/do" className="btn ghost">
-          Just give me a timer
-        </Link>
-      </p>
+      <section aria-labelledby="other-h" className="stack">
+        <h2 className="eyebrow" id="other-h">
+          Other ways in
+        </h2>
+        <div className="row">
+          <Link to="/pick" className="btn">
+            Pick for me
+          </Link>
+          <Link to="/dump" className="btn">
+            Brain dump
+          </Link>
+          <Link to="/do" className="btn ghost">
+            Just give me a timer
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

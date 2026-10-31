@@ -1,13 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import {
-  AiError,
-  generatePlan,
-  makeStepEasier,
-  refinePlan,
-  type RefineOutcome,
-} from '../../ai/client';
+import { generatePlan, makeStepEasier, refinePlan, type RefineOutcome } from '../../ai/client';
 import { QUICK_REFINES } from '../../ai/rules';
 import { db } from '../../data/db';
 import {
@@ -45,8 +39,9 @@ import {
   sortSteps,
 } from '../../domain/plan';
 import { celebrationText } from '../../domain/rewards';
-import type { AppSettings, StepOrigin, Task, TaskStep } from '../../domain/types';
-import { useAiConsent } from '../components/AiConsent';
+import { challengeFor, shouldOfferSetup } from '../../domain/setup';
+import type { AppSettings, SessionKind, Task, TaskStep } from '../../domain/types';
+import { sourceLabel, useWithConsent, type ConsentRun } from '../components/AiConsent';
 import { Celebrate } from '../components/Celebrate';
 import { Dialog } from '../components/Dialog';
 import { IconCheck, IconDown, IconUp } from '../components/Icons';
@@ -54,44 +49,17 @@ import { RefinePreviewDialog } from '../components/RefinePreviewDialog';
 import { SprintPicker } from '../components/SprintPicker';
 import { useToast } from '../components/Toast';
 import { useSettings } from '../hooks';
-
-export function sourceLabel(origin: StepOrigin | undefined): string {
-  switch (origin) {
-    case 'ai':
-      return 'AI';
-    case 'demo':
-      return 'Demo';
-    case 'template':
-      return 'Quick steps';
-    case 'user':
-      return 'Your steps';
-    default:
-      return '';
-  }
-}
-
-/** Runs an AI action; if it needs consent, asks once, then runs again with fresh settings. */
-function useWithConsent() {
-  const consent = useAiConsent();
-  const run = async <T,>(fn: (s: AppSettings) => Promise<T>): Promise<T> => {
-    try {
-      return await fn(await getSettings());
-    } catch (err) {
-      if (err instanceof AiError && err.code === 'consent') {
-        await consent.ensure();
-        return fn(await getSettings());
-      }
-      throw err;
-    }
-  };
-  return { run, dialog: consent.dialog };
-}
+import { FinishView, GoodEnoughView, SetupDialog, TaskDetails } from './TaskTools';
 
 export function TaskScreen() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const view = params.get('view') === 'all' ? 'all' : 'domino';
+  const viewParam = params.get('view');
+  const view =
+    viewParam === 'all' || viewParam === 'good-enough' || viewParam === 'finish'
+      ? viewParam
+      : 'domino';
   const settings = useSettings();
   const toast = useToast();
   const consent = useWithConsent();
@@ -104,6 +72,9 @@ export function TaskScreen() {
   const [celebration, setCelebration] = useState<string | undefined>();
   const [sprintOpen, setSprintOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingTimer, setPendingTimer] = useState<{ kind: SessionKind; minutes: number } | null>(
+    null,
+  );
 
   if (task === undefined || steps === undefined) return <p aria-busy="true">Loading…</p>;
   if (task === null || task.deletedAt) {
@@ -120,18 +91,43 @@ export function TaskScreen() {
 
   const current = pickCurrentStep(steps, task.currentStepId);
 
-  const startTimer = async (kind: 'launch' | 'sprint', minutes: number) => {
+  const beginTimer = async (kind: SessionKind, minutes: number) => {
     await startSession({
       kind,
       minutes,
       goal: current?.text ?? task.title,
       taskId: task.id,
       ...(current ? { stepId: current.id } : {}),
+      ...(current?.estimateMin ? { guessMin: current.estimateMin } : {}),
+      ...(kind === 'launch' && settings.challenges !== false
+        ? { challenge: challengeFor(task.barrier, current?.id ?? task.id) }
+        : {}),
     });
     navigate(`/task/${task.id}/do`);
   };
 
-  const generate = async () => {
+  // Offers the optional setup checklist first when it fits; never blocks starting.
+  const startTimer = async (kind: SessionKind, minutes: number) => {
+    if (shouldOfferSetup(settings.setupPrompts, task.barrier, kind)) {
+      setPendingTimer({ kind, minutes });
+      return;
+    }
+    await beginTimer(kind, minutes);
+  };
+
+  const setupDialog = (
+    <SetupDialog
+      open={pendingTimer !== null}
+      onClose={() => setPendingTimer(null)}
+      onStart={() => {
+        const p = pendingTimer;
+        setPendingTimer(null);
+        if (p) void beginTimer(p.kind, p.minutes);
+      }}
+    />
+  );
+
+  const generate = async (nextView?: 'good-enough' | 'finish') => {
     setGenerating(true);
     setFallbackReason(undefined);
     try {
@@ -142,7 +138,7 @@ export function TaskScreen() {
         ...(outcome.result.safetyNote ? { safetyNote: outcome.result.safetyNote } : {}),
       });
       setFallbackReason(outcome.fallbackReason);
-      setParams({}, { replace: true });
+      setParams(nextView ? { view: nextView } : {}, { replace: true });
     } finally {
       setGenerating(false);
     }
@@ -152,7 +148,14 @@ export function TaskScreen() {
     if (m === 'breakdown') void generate();
     else if (m === 'launch') void startTimer('launch', 2);
     else if (m === 'focus') setSprintOpen(true);
-    else navigate('/tasks');
+    else if (m === 'roulette') navigate('/pick');
+    else if (m === 'energy') navigate('/pick?energy=low');
+    else if (m === 'brain-dump') navigate('/dump');
+    else if (m === 'good-enough' || m === 'finish-line') {
+      const target = m === 'good-enough' ? 'good-enough' : 'finish';
+      if (steps.length === 0) void generate(target);
+      else setParams({ view: target });
+    } else navigate('/tasks');
   };
 
   const sprintPicker = (
@@ -228,7 +231,9 @@ export function TaskScreen() {
         {view === 'all' && (
           <AllSteps task={task} steps={steps} settings={settings} consentRun={consent.run} />
         )}
+        <TaskDetails task={task} />
         {sprintPicker}
+        {setupDialog}
         {consent.dialog}
       </div>
     );
@@ -236,6 +241,33 @@ export function TaskScreen() {
 
   const { done, total } = progressOf(steps);
   const label = sourceLabel(task.planSource);
+
+  // ---------------- Good Enough and Finish-Line views ----------------
+  if (view === 'good-enough' || view === 'finish') {
+    return (
+      <div className="stack">
+        <div className="row">
+          <button type="button" className="btn ghost" onClick={() => setParams({})}>
+            ← One step at a time
+          </button>
+        </div>
+        <h1 className="step-text">{task.title}</h1>
+        <p className="muted small">
+          {done} of {total} done{' '}
+          {label && <span className={label === 'Demo' ? 'tag demo' : 'tag'}>{label}</span>}
+        </p>
+        {view === 'good-enough' ? (
+          <GoodEnoughView task={task} steps={steps} />
+        ) : (
+          <FinishView task={task} steps={steps} consentRun={consent.run} />
+        )}
+        <button type="button" className="btn ghost" onClick={() => setParams({ view: 'all' })}>
+          See all steps ({total})
+        </button>
+        {consent.dialog}
+      </div>
+    );
+  }
 
   // ---------------- Full plan view ----------------
   if (view === 'all') {
@@ -252,6 +284,7 @@ export function TaskScreen() {
           {label && <span className={label === 'Demo' ? 'tag demo' : 'tag'}>{label}</span>}
         </p>
         <AllSteps task={task} steps={steps} settings={settings} consentRun={consent.run} />
+        <TaskDetails task={task} />
         <TaskFooter task={task} />
         {consent.dialog}
       </div>
@@ -394,14 +427,23 @@ export function TaskScreen() {
         <button type="button" className="btn ghost" onClick={() => setSprintOpen(true)}>
           Focus sprint…
         </button>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() => setParams({ view: 'good-enough' })}
+        >
+          Good-enough version
+        </button>
+        <button type="button" className="btn ghost" onClick={() => setParams({ view: 'finish' })}>
+          Finish line
+        </button>
       </div>
       {sprintPicker}
+      {setupDialog}
       {consent.dialog}
     </div>
   );
 }
-
-type ConsentRun = ReturnType<typeof useWithConsent>['run'];
 
 /** Shared refine flow: request a proposal, preview it, apply with undo. */
 function useRefine(task: Task, steps: TaskStep[], consentRun: ConsentRun) {

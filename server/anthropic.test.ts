@@ -54,7 +54,7 @@ describe('Anthropic adapter', () => {
     expect(sent.url).toContain('/v1/messages');
     expect(sent.headers.get('authorization')).toBe('Bearer test');
     expect(sent.headers.get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
-    expect(sent.body.model).toBe('claude-opus-5-5');
+    expect(sent.body.model).toBe('claude-haiku-5-5');
     expect(sent.body.thinking).toEqual({ type: 'adaptive' });
     expect(sent.body.output_config).toMatchObject({
       effort: 'low',
@@ -67,11 +67,11 @@ describe('Anthropic adapter', () => {
     const { f, calls } = fakeFetch(200, message(JSON.stringify(wire)));
     await createAnthropicProvider({
       apiKey: 'k',
-      model: 'claude-haiku-5-5',
+      model: 'claude-opus-5-5',
       fetch: f,
       maxRetries: 0,
     }).generate(req);
-    expect(calls[0]!.body.model).toBe('claude-haiku-5-5');
+    expect(calls[0]!.body.model).toBe('claude-opus-5-5');
   });
 
   it('maps refusals, truncation and bad JSON', async () => {
