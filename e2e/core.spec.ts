@@ -186,7 +186,11 @@ test.describe('with a demo plan', () => {
     await page.getByRole('button', { name: /See all steps/ }).click();
     await page.getByRole('button', { name: 'Delete task' }).click();
     await page.getByRole('button', { name: 'Undo' }).click();
-    await page.goto('/tasks');
+    // In-app navigation, so the undo's write isn't cut off by a page load.
+    await page
+      .getByRole('navigation', { name: 'Main' })
+      .getByRole('link', { name: 'Tasks' })
+      .click();
     await expect(page.getByRole('link', { name: new RegExp(TITLE) })).toBeVisible();
     await expect(page.getByRole('link', { name: /Second task stays/ })).toBeVisible();
     await page.getByRole('link', { name: new RegExp(TITLE) }).click();
@@ -336,11 +340,12 @@ test('19: AI unavailable, rate limited, or timed out falls back', async ({ page 
 
 test('19: a hung AI request times out and falls back', async ({ page }) => {
   await page.clock.install();
-  await mockAi(page, () => 'hang');
+  const seen = await mockAi(page, () => 'hang');
   await createTask(page, TITLE);
   await findFirstStep(page);
   await page.getByRole('button', { name: 'OK, use AI' }).click();
-  await expect(page.getByRole('button', { name: /Finding a first step/ }).first()).toBeVisible();
+  // The client's timeout starts just before the request goes out, so wait for the request.
+  await expect.poll(() => seen.length).toBe(1);
   await page.clock.fastForward(26_000);
   await expect(page.getByText(/took too long/)).toBeVisible();
   await expect(page.locator('.domino-step')).toBeVisible();
